@@ -1,214 +1,183 @@
 import pygame
-import random
+
+WIDTH = 400
+HEIGHT = 400
+FPS = 30
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 128, 0)
+TEXT_COLOR = (255, 255, 255)
+EMPTY = 0
+BLACK_PIECE = 1
+WHITE_PIECE = 2
 
 pygame.init()
-
-box_size = 30
-box_width = 10
-box_height = 20
-width = box_size * box_width
-height =box_size * box_height
-side_width = 100
-screen_width = width + side_width
-white = (245,245,245)
-black = (0, 0, 0)
-line_color= (139,125,107)
-cube_colors = [(255,245,40),(175,175,20),(185,185,185),(155,0,0),(175,20,20),(0, 155,0),(20,175,20),(0,0,155),(20,20,175)]
-
-screen = pygame.display.set_mode((screen_width, height))
-pygame.display.set_caption("テトリス")
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
-FPS = 60
 
 
-def draw_grids():
-    for i in range(box_width):
-        pygame.draw.line(screen, line_color, (i * box_size, 0), (i * box_size, height))
+def draw_board(board, valid_moves):
+    screen.fill(GREEN)
+    for row in range(8):
+        for col in range(8):
+            pygame.draw.rect(screen, GREEN, (col * 50, row * 50, 50, 50))
+            if board[row][col] == BLACK_PIECE:
+                pygame.draw.circle(screen, BLACK, (col * 50 + 25, row * 50 + 25), 20)
+            elif board[row][col] == WHITE_PIECE:
+                pygame.draw.circle(screen, WHITE, (col * 50 + 25, row * 50 + 25), 20)
 
-    for i in range(box_height):
-        pygame.draw.line(screen, line_color, (0, i * box_size), (width, i * box_size))
-
-    pygame.draw.line(screen, white, (box_size * box_width, 0), (box_size * box_width, box_size * box_height))
-
-def show_text(surf, text, size, x, y, color=white):
-    font = pygame.font.SysFont("Arial", size)
-    text_surface = font.render(text, True, color)
-    text_rect = text_surface.get_rect()
-    text_rect.midtop = (x, y)
-    surf.blit(text_surface, text_rect)
-level = 1
-def show_gameover(screen):
-    show_text(screen, 'cube', 30, 225, 250)
-    show_text(screen, 'press enter to start', 20, 225, 300)
+    for move in valid_moves:
+        row, col = move
+        pygame.draw.circle(screen, (0, 255, 0), (col * 50 + 25, row * 50 + 25), 5)
 
 
-screen_color_matrix = []
-for i in range(box_height):
-    screen_color_matrix.append([0] * box_width)
+def initialize_board():
+    board = [[EMPTY for _ in range(8)] for _ in range(8)]
+    board[3][3] = WHITE_PIECE
+    board[3][4] = BLACK_PIECE
+    board[4][3] = BLACK_PIECE
+    board[4][4] = WHITE_PIECE
+    return board
 
-class CubeShape(object):
-    shapes = ['I', 'J', 'L', 'O', 'S', 'T', 'Z']
-    I = [[(0, -1), (0, 0), (0, 1), (0, 2)],
-         [(-1, 0), (0, 0), (1, 0), (2, 0)]]
-    J = [[(-2, 0), (-1, 0), (0, 0), (0, -1)],
-         [(-1, 0), (0, 0), (0, 1), (0, 2)],
-         [(0, 1), (0, 0), (1, 0), (2, 0)],
-         [(0, -2), (0, -1), (0, 0), (1, 0)]]
-    L = [[(-2, 0), (-1, 0), (0, 0), (0, 1)],
-         [(1, 0), (0, 0), (0, 1), (0, 2)],
-         [(0, -1), (0, 0), (1, 0), (2, 0)],
-         [(0, -2), (0, -1), (0, 0), (-1, 0)]]
-    O = [[(0, 0), (0, 1), (1, 0), (1, 1)]]
-    S = [[(-1, 0), (0, 0), (0, 1), (1, 1)],
-         [(1, -1), (1, 0), (0, 0), (0, 1)]]
-    T = [[(0, -1), (0, 0), (0, 1), (-1, 0)],
-         [(-1, 0), (0, 0), (1, 0), (0, 1)],
-         [(0, -1), (0, 0), (0, 1), (1, 0)],
-         [(-1, 0), (0, 0), (1, 0), (0, -1)]]
-    Z = [[(0, -1), (0, 0), (1, 0), (1, 1)],
-         [(-1, 0), (0, 0), (0, -1), (1, -1)]]
-    shapes_with_dir = {
-        'I': I, 'J': J, 'L': L, 'O': O, 'S': S, 'T': T, 'Z': Z
-    }
-    def __init__(self):
-        self.shape = self.shapes[random.randint(0, len(self.shapes) - 1)]
-        self.center = (2, box_width // 2)
-        self.dir = random.randint(0, len(self.shapes_with_dir[self.shape]) - 1)
-        self.color = cube_colors[random.randint(0, len(cube_colors) - 1)]
 
-    def get_all_gridpos(self, center=None):
-        curr_shape = self.shapes_with_dir[self.shape][self.dir]
-        if center is None:
-            center = [self.center[0], self.center[1]]
+def get_valid_moves(board, player):
+    valid_moves = []
+    for row in range(8):
+        for col in range(8):
+            if is_valid_move(board, row, col, player):
+                valid_moves.append((row, col))
+    return valid_moves
 
-        return [(cube[0] + center[0], cube[1] + center[1])
-                for cube in curr_shape]
-    def conflict(self, center):
-        for cube in self.get_all_gridpos(center):
-            if cube[0] < 0 or cube[1] < 0 or cube[0] >= box_height or cube[1] >= box_width:
-                return True
-            if screen_color_matrix[cube[0]][cube[1]] != 0:
-                return True
+
+def is_valid_move(board, row, col, player):
+    if board[row][col] != EMPTY:
         return False
+    other_player = BLACK_PIECE if player == WHITE_PIECE else WHITE_PIECE
+    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    for direction in directions:
+        if is_valid_direction(board, row, col, direction, player, other_player):
+            return True
+    return False
 
-    def rotate(self):
-        new_dir = self.dir + 1
-        new_dir %= len(self.shapes_with_dir[self.shape])
-        old_dir = self.dir
-        self.dir = new_dir
-        if self.conflict(self.center):
-            self.dir = old_dir
+
+def is_valid_direction(board, row, col, direction, player, other_player):
+    dx, dy = direction
+    x = row + dx
+    y = col + dy
+    if x < 0 or x >= 8 or y < 0 or y >= 8 or board[x][y] != other_player:
+        return False
+    x += dx
+    y += dy
+    while x >= 0 and x < 8 and y >= 0 and y < 8:
+        if board[x][y] == player:
+            return True
+        elif board[x][y] == EMPTY:
             return False
-
-    def down(self):
-        center = (self.center[0] + 1, self.center[1])
-        if self.conflict(center):
-            return False
-        self.center = center
-        return True
-
-    def left(self):
-        center = (self.center[0], self.center[1] - 1)
-        if self.conflict(center):
-            return False
-        self.center = center
-        return True
-
-    def right(self):
-        center = (self.center[0], self.center[1] + 1)
-        if self.conflict(center):
-            return False
-        self.center = center
-        return True
-
-    def draw(self):
-        for cube in self.get_all_gridpos():
-            pygame.draw.rect(screen, self.color,
-                             (cube[1] * box_size, cube[0] * box_size,
-                              box_size, box_size))
-            pygame.draw.rect(screen, white,
-                             (cube[1] * box_size, cube[0] * box_size,
-                              box_size, box_size),
-                             1)
-def draw_matrix():
-    for i, row in zip(range(box_height), screen_color_matrix):
-        for j, color in zip(range(box_width), row):
-            if color != 0:
-                pygame.draw.rect(screen, color,
-                                 (j * box_size, i * box_size,
-                                  box_size, box_size))
-                pygame.draw.rect(screen, white,
-                                 (j * box_size, i * box_size,
-                                  box_size, box_size), 2)
+        x += dx
+        y += dy
+    return False
 
 
-def remove_full_line():
-    global screen_color_matrix
-
-    new_matrix = [[0] * box_width for i in range(box_height)]
-    index = box_height - 1
-    n_full_line = 0
-    for i in range(box_height - 1, -1, -1):
-        is_full = True
-        for j in range(box_width):
-            if screen_color_matrix[i][j] == 0:
-                is_full = False
-                continue
-        if not is_full:
-            new_matrix[index] = screen_color_matrix[i]
-            index -= 1
-        else:
-            n_full_line += 1
-    screen_color_matrix = new_matrix
+def make_move(board, row, col, player):
+    board[row][col] = player
+    other_player = BLACK_PIECE if player == WHITE_PIECE else WHITE_PIECE
+    directions = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]
+    for direction in directions:
+        make_move_direction(board, row, col, direction, player, other_player)
 
 
-running = True
-stop = False
-gameover = True
-counter = 0
-live_cube = 0
+def make_move_direction(board, row, col, direction, player, other_player):
+    dx, dy = direction
+    x = row + dx
+    y = col + dy
+    if x < 0 or x >= 8 or y < 0 or y >= 8 or board[x][y] != other_player:
+        return
+    x += dx
+    y += dy
+    while x >= 0 and x < 8 and y >= 0 and y < 8:
+        if board[x][y] == player:
+            while (x - dx) != row or (y - dy) != col:
+                x -= dx
+                y -= dy
+                board[x][y] = player
+            return
+        elif board[x][y] == EMPTY:
+            return
+        x += dx
+        y += dy
 
-while running:
-    clock.tick(FPS)
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            if gameover:
-                gameover = False
-                live_cube = CubeShape()
-                break
-            if event.key == pygame.K_LEFT:
-                live_cube.left()
-            elif event.key == pygame.K_RIGHT:
-                live_cube.right()
-            elif event.key == pygame.K_DOWN:
-                live_cube.down()
-            elif event.key == pygame.K_UP:
-                live_cube.rotate()
-            elif event.key == pygame.K_SPACE:
-                while live_cube.down() == True:
-                    pass
 
-    if gameover is False and counter % (FPS // level) == 0:
-        if live_cube.down() == False:
-            for cube in live_cube.get_all_gridpos():
-                screen_color_matrix[cube[0]][cube[1]] = live_cube.color
-            live_cube = CubeShape()
-            counter=0
-            if live_cube.conflict(live_cube.center):
-                gameover = True
-                live_cube = 0
-                screen_color_matrix = [[0] * box_width for i in range(box_height)]
+def switch_player(player):
+    return BLACK_PIECE if player == WHITE_PIECE else WHITE_PIECE
 
-        remove_full_line()
-    counter += 1
 
-    screen.fill(black)
-    draw_grids()
-    draw_matrix()
-    if live_cube != 0:
-        live_cube.draw()
-    if gameover:
-        show_gameover(screen)
-    pygame.display.update()
+def get_winner(board):
+    black_count = 0
+    white_count = 0
+    for row in range(8):
+        for col in range(8):
+            if board[row][col] == BLACK_PIECE:
+                black_count += 1
+            elif board[row][col] == WHITE_PIECE:
+                white_count += 1
+    if black_count > white_count:
+        return "black win"
+    elif black_count < white_count:
+        return "white win"
+    else:
+        return "tie game"
+
+
+def main():
+    running = True
+    game_over=False
+    player = BLACK_PIECE
+    board = initialize_board()
+
+    while running:
+        clock.tick(FPS)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = event.pos
+                row = y // 50
+                col = x // 50
+                if is_valid_move(board, row, col, player):
+                    make_move(board, row, col, player)
+                    player = switch_player(player)
+
+        valid_moves = get_valid_moves(board, player)
+
+        draw_board(board, valid_moves)
+
+        if len(valid_moves) == 0:
+            player = switch_player(player)
+            valid_moves = get_valid_moves(board, player)
+            if len(valid_moves) == 0:
+                running = False
+                game_over=True
+        draw_board(board,valid_moves)
+        pygame.display.flip()
+    if game_over:
+        winner = get_winner(board)
+        display_winner(winner)
+        pygame.time.wait(3000)
+        running=False
+    pygame.quit()
+def display_winner(winner):
+    font = pygame.font.Font(None, 40)
+    text = font.render("Winner: " + winner, True, TEXT_COLOR)
+    text_rect = text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+    screen.blit(text, text_rect)
+    pygame.display.flip()
+
+if __name__ == '__main__':
+    main()
+
+
+
+
+
+
